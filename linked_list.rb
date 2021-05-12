@@ -2,6 +2,7 @@
 
 require 'pry'
 require 'pry-byebug'
+require 'benchmark'
 
 # Listable#Deque: Coerce args to Deque
 # => If Array, return new Deque with same values as Array
@@ -24,13 +25,17 @@ end
 class Deque
   attr_reader :size
 
-  def self.new(*args, len: args.size)
+  def length
+    size
+  end
+
+  def self.new(*args, len: nil)
     deque = super()
     if args[0].class == Range
       deque.populate!(args[0])
-    elsif len == args.size
+    elsif len == nil
       i = 0
-      while i < len
+      while i < args.size
         deque.push(args[i])
         i += 1
       end
@@ -83,6 +88,10 @@ class Deque
     result
   end
 
+  def append(element)
+    push(element)
+  end
+
   def push(element)
     if head
       tail.append(element)
@@ -123,6 +132,10 @@ class Deque
     data
   end
 
+  def prepend(element)
+    unshift(element)
+  end
+
   def unshift(element)
     node = Node.new(element, succ: head)
     head.pred = node if head
@@ -160,11 +173,26 @@ class Deque
     end
   end
 
+  def to_a
+    arr = []
+    each { |e| arr.push(e) }
+    arr
+  end
+
   def each(&block)
     node = head
     while node
       block.call(node.data)
       node = node.succ
+    end
+    self
+  end
+
+  def reverse_each(&block)
+    node = tail
+    while node
+      block.call(node.data)
+      node = node.pred
     end
     self
   end
@@ -178,6 +206,10 @@ class Deque
       i += 1
     end
     self
+  end
+
+  def collect(&block)
+    map(&block)
   end
 
   def map(&block)
@@ -214,9 +246,21 @@ class Deque
     deque
   end
 
+  def reject(&block)
+    deque = Deque.new
+    each { |e| deque.push(e) unless block.call(e) }
+    deque
+  end
+
   def select_with_index(&block)
     deque = Deque.new
     each_with_index { |e, i| deque.push(e) if block.call(e, i) }
+    deque
+  end
+
+  def reject_with_index(&block)
+    deque = Deque.new
+    each_with_index { |e, i| deque.push(e) unless block.call(e) }
     deque
   end
 
@@ -224,6 +268,17 @@ class Deque
     node = head
     while node
       unless block.call(node.data)
+        remove(node)
+      end
+      node = node.succ
+    end
+    self
+  end
+
+  def reject!(&block)
+    node = head
+    while node
+      if block.call(node.data)
         remove(node)
       end
       node = node.succ
@@ -244,7 +299,51 @@ class Deque
     self
   end
 
-  def delete(element)
+  def reject_with_index!(&block)
+    node = head
+    i = 0
+    while node
+      if block.call(node.data, i)
+        remove(node)
+      end
+      node = node.succ
+      i += 1
+    end
+    self
+  end
+
+  def uniq
+    deque = Deque.new
+    each do |e|
+      deque.push(e) unless deque.include?(e)
+    end
+    deque
+  end
+
+  def uniq!
+    each_node do |node|
+      remove(node) unless one? { |e| e == node.data }
+    end
+  end
+
+  def count(*arg)
+    return size if arg.empty?
+    if arg.size != 1
+      raise ArgumentError.new(
+        "wrong number of arguments (given 2, expected 0..1)"
+      )
+    end
+    amt = 0
+    each { |e| amt += 1 if arg[0] == e }
+    amt
+  end
+
+  def include?(element)
+    each { |e| return true if element == e }
+    false
+  end
+
+  def fdelete(element)
     each_node do |node|
       if node.data == element
         remove(node)
@@ -254,8 +353,14 @@ class Deque
     nil
   end
 
-  def rdelete(element)
-
+  def ldelete(element)
+    reverse_each_node do |node|
+      if node.data == element
+        remove(node)
+        return node.data
+      end
+    end
+    nil
   end
 
   def delete_at(idx)
@@ -263,6 +368,27 @@ class Deque
     return nil unless node
     remove(node)
     node.data
+  end
+
+  def delete(element)
+    included = false
+    select! do |e|
+      if e != element
+        true
+      else
+        included = true
+        false
+      end
+    end
+    if included
+      element
+    else
+      nil
+    end
+  end
+
+  def inject(&block)
+    reduce(&block)
   end
 
   def reduce(sum = nil, &block)
@@ -278,13 +404,44 @@ class Deque
     reducer(sum, node, &block)
   end
 
+  def reverse
+    deque = Deque.new
+    each { |e| deque.unshift(e) }
+    deque
+  end
+
+  def reverse!
+    i = 0
+    beg_node = head
+    end_node = tail
+    until i == size/2
+      swap!(beg_node, end_node)
+      succ = end_node.succ
+      pred = beg_node.pred
+      beg_node = succ
+      end_node = pred
+      i += 1
+    end
+    self
+  end
+
   def all?(&block)
     each { |e| return false unless block.call(e) }
     true
   end
 
+  def none?(&block)
+    each { |e| return false if block.call(e) }
+    true
+  end
+
   def all_with_index?(&block)
     each_with_index { |e, i| return false unless block.call(e, i) }
+    true
+  end
+
+  def none_with_index?(&block)
+    each_with_index { |e, i| return false if block.call(e, i) }
     true
   end
 
@@ -298,12 +455,58 @@ class Deque
     false
   end
 
+  def one?(&block)
+    count = 0
+    each do |e|
+      count += 1 if block.call(e)
+      return false if count == 2
+    end
+    count == 1
+  end
+
+  def one_with_index?(&block)
+    count = 0
+    each_with_index do |e, i|
+      count += 1 if block.call(e, i)
+      return false if count == 2
+    end
+    count == 1
+  end
+
   def first
     head.data
   end
 
   def last
     tail.data
+  end
+
+  def index(value, count = 0, node = head)
+    return nil unless node
+    return count if value == node.data
+    index(value, count + 1, node.succ)
+  end
+
+  def rindex(value, count = size - 1, node = tail)
+    return nil unless node
+    return count if value == node.data
+    rindex(value, count - 1, node.pred)
+  end
+
+  def find(value)
+    index(value)
+  end
+
+  def find_all(value)
+    count = 0
+    indeces = Deque.new
+    node = head
+    loop do
+      return indeces unless node
+      indeces.push(count) if value == node.data
+      count += 1
+      node = node.succ
+    end
   end
 
   def <<(element)
@@ -322,10 +525,18 @@ class Deque
     deque
   end
 
+  def -(list)
+    reject { |e| list.include?(e) }
+  end
+
   def deep_clone
     deque = Deque.new
     each { |e| deque.push(e) }
     deque
+  end
+
+  def inspect_node(idx)
+    puts node_at(idx).inspect
   end
 
   # Can only be called from Deque.new
@@ -343,10 +554,6 @@ class Deque
         "private method 'populate!' called for #{self}:#{self.class}"
       )
     end
-  end
-
-  def inspect_node(idx)
-    puts node_at(idx).inspect
   end
 
   private
@@ -419,6 +626,15 @@ class Deque
     self
   end
 
+  def reverse_each_node(&block)
+    node = tail
+    while node
+      block.call(node)
+      node = node.pred
+    end
+    self
+  end
+
   def each_node_with_index(&block) # SO FAR UNUSED
     i = 0
     node = head
@@ -430,6 +646,48 @@ class Deque
     self
   end
 
+  def nindex(node, count = 0, cnode = head)
+    return nil unless cnode
+    return count if node == cnode
+    nindex(node, count + 1, cnode.succ)
+  end
+
+  def swap!(node, other)
+    if nindex(node) < nindex(other)
+      n_pred = node.pred
+      n_succ = node.succ
+      o_pred = other.pred
+      o_succ = other.succ
+      if n_pred
+        n_pred.succ = other
+      else
+        self.head = other
+      end
+
+      if o_succ
+        o_succ.pred = node
+      else
+        self.tail = node
+      end
+
+      if node.adjacent?(other)
+        node.pred = other
+        other.succ = node
+      else
+        node.pred = o_pred
+        other.succ = n_succ
+        n_succ.pred = other
+        o_pred.succ = node
+      end
+
+      node.succ = o_succ
+      other.pred = n_pred
+      self
+    else
+      swap!(other, node)
+    end
+  end
+
   class Node
     attr_accessor :data, :pred, :succ
 
@@ -439,12 +697,17 @@ class Deque
       @succ = succ
     end
 
+    def adjacent?(node)
+      (succ == node && node.pred == self) ||
+      (pred == node && node.succ == self)
+    end
+
     def append(element)
       self.succ = Node.new(element, pred: self, succ: succ)
     end
 
     def to_s
-      return data.to_s if data
+      return data.inspect if data
 
       'nil'
     end
@@ -471,11 +734,6 @@ end
 # deque[5] = 'T'
 # p deque
 
-deque = Deque.new(1..9)
-p deque
-p deque.delete(5)
-p deque
-
 # deque[-1] = 8
 # p deque
 # p deque + Deque(7)
@@ -484,8 +742,9 @@ p deque
 # p deque == list
 # p deque.size
 
-# deque = Deque.new('a', 'b', 'c', len: 3)
-# p deque
+deque = Deque.new('a', 'b', len: 3)
+
+
 # p Deque.new('a', 'b', 'c', 'd')
 # nums = Deque.new(10, len: 5) #{ |e| e = e * 2 }
 # p nums
