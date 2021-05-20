@@ -29,11 +29,11 @@ class Deque
     size
   end
 
-  def self.new(*args, len: nil)
+  def self.new(*args, rep: nil)
     deque = super()
     if args[0].class == Range
       deque.populate!(args[0])
-    elsif len == nil
+    elsif rep == nil
       i = 0
       while i < args.size
         deque.push(args[i])
@@ -41,7 +41,7 @@ class Deque
       end
     else
       j = 0
-      while j < len
+      while j < rep
         i = 0
         while i < args.size
           deque.push(args[i])
@@ -53,14 +53,12 @@ class Deque
     deque
   end
 
-  def initialize
-    @head = nil
-    @tail = nil
-    @size = 0
-  end
-
   def all?(&block)
-    each { |e| return false unless block.call(e) }
+    if block
+      each { |e| return false unless block.call(e) }
+    else
+      each { |e| return false unless e }
+    end
     true
   end
 
@@ -856,6 +854,12 @@ class Deque
     slice(range.begin, range.size)
   end
 
+  def initialize
+    @head = nil
+    @tail = nil
+    @size = 0
+  end
+
   def merge_by(left, right, &block)
     node = left.head
     other_node = right.head
@@ -1057,101 +1061,3 @@ class Deque
     end
   end
 end
-
-p Deque.new(0..9).values_at(1, 3, 5)
-
-# p deque = Deque.new(1, 2, 3, 4, 5, 'a')
-#
-# p Deque(1, 2, 3, 4, 9, 7)
-#
-# p Deque([1, 2, 3, 4, 9, 7])
-#
-# p Deque()
-#
-# deque = Deque.new(0..9)
-# p deque
-# deque[5] = 'T'
-# p deque
-
-# deque[-1] = 8
-# p deque
-# p deque + Deque(7)
-# p deque
-# p list
-# p deque == list
-# p deque.size
-
-# deque = Deque.new(9, 8, 7, 6, 5, 4, 3, 2, 1)
-#
-# p deque.sort
-# p deque
-
-# class Array
-#   def product(*args)
-#     if args.size == 1
-#       result = []
-#       each do |e|
-#         args[0].each do |f|
-#           result << [e, f]
-#         end
-#       end
-#       result
-#     else
-#       temp = args[0].product(*args[1..-1])
-#       result = []
-#       each do |e|
-#         temp.each do |f|
-#           result << ([e] + f)
-#         end
-#       end
-#       result
-#     end
-#   end
-# end
-#
-# [1, 2, 3].product(['a', 'b'], [:c, :d], [4, 5, 6]).each do |e|
-#   p e
-# end
-
-# Deque.new(1, 2, 3).product(Deque.new('a', 'b'), Deque.new(:c, :d), Deque.new(4, 5, 6)).each do |e|
-#   p e
-# end
-
-# i = 0
-# key = :a
-# while i <= 5_000_000
-#   deque << [key, i]
-#   key = key.succ
-#   i += 1
-# end
-#
-# puts Benchmark.measure {
-#   deque.to_h
-# }
-
-# p Deque.new('a', 'b', 'c', 'd')
-# nums = Deque.new(10, len: 5) #{ |e| e = e * 2 }
-# p nums
-
-# deque = Deque.new
-# deque.unshift('f')
-# deque.unshift('e')
-# deque.unshift('d')
-# deque.unshift(nil)
-# deque.unshift('b')
-# deque.unshift('a')
-#
-# deque = Deque.new(1..9)
-# p deque[8]
-
-# p deque[5]
-# p deque[-6]
-# p deque.slice(0, 5)
-# p deque
-# p deque[-3..-1]
-# p deque[-3..5]
-# p deque[3..5]
-# p deque.push(10)
-# p deque.unshift(20)
-# p deque.pop
-# p deque
