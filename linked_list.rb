@@ -1,9 +1,3 @@
-# frozen_string_literal: true
-
-require 'pry'
-require 'pry-byebug'
-require 'benchmark'
-
 # Listable#Deque: Coerce args to Deque
 # => If Array, return new Deque with same values as Array
 # => Else, initialize new Deque with all args as values
